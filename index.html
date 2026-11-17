@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نظام محل الإكسسوارات</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef3f4;--card:#fff;--ink:#12292f;--mut:#5d7279;--line:#d6e0e3;--pri:#0e7c86;--onpri:#fff;--gain:#16875a;--loss:#c62f3f;--warn:#b7791f;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1a1d;--card:#15272b;--ink:#e6f1f3;--mut:#93aab0;--line:#2a4045;--pri:#34b5c0;--onpri:#07181b;--gain:#4cc88f;--loss:#ff7a87;--warn:#e8b45a}}
+:root[data-theme="dark"]{--bg:#0d1a1d;--card:#15272b;--ink:#e6f1f3;--mut:#93aab0;--line:#2a4045;--pri:#34b5c0;--onpri:#07181b;--gain:#4cc88f;--loss:#ff7a87;--warn:#e8b45a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Cairo,Tahoma,Arial,sans-serif;font-size:16px;line-height:1.6;padding-bottom:84px}
+main{max-width:640px;margin:0 auto;padding:12px}
+h1{font-size:20px;font-weight:800;margin:6px 0 12px}
+h2{font-size:16px;font-weight:800;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:13px;color:var(--mut);margin:8px 0 3px}
+input,select{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--pri);outline-offset:1px}
+.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}
+button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:11px 14px;background:var(--pri);color:var(--onpri);cursor:pointer;width:100%;margin-top:12px}
+button.s{width:auto;margin:0;padding:4px 10px;background:transparent;color:var(--mut);border:1px solid var(--line);font-size:13px}
+button.s.d{color:var(--loss)}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.k{background:var(--bg);border-radius:10px;padding:10px}
+.k small{display:block;color:var(--mut);font-size:12px}
+.k b{font-size:19px;font-weight:800}
+.k.net{grid-column:1/-1;border:2px solid var(--line)}
+.k.net b{font-size:28px}
+.gain{color:var(--gain)}.loss{color:var(--loss)}.warn{color:var(--warn)}
+.it{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}
+.it:last-child{border:0}.it small{color:var(--mut);display:block;font-size:12px}
+.empty{color:var(--mut);text-align:center;padding:14px 0}
+nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+nav a{flex:1;text-align:center;padding:10px 2px;font-size:13px;font-weight:600;color:var(--mut);cursor:pointer;text-decoration:none}
+nav a.on{color:var(--pri);box-shadow:inset 0 3px 0 var(--pri)}
+.tot{font-weight:800;margin-top:8px}
+#ov{position:fixed;inset:0;background:#000;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;padding-top:calc(16px + env(safe-area-inset-top,0px))}
+#ov[hidden]{display:none}#vid{width:100%;max-width:480px;border-radius:12px}#smsg{color:#fff;text-align:center}#ov button{max-width:480px}
+</style>
+</head>
+<body>
+<main>
+<h1 id="ttl"></h1>
+<div id="app"></div>
+</main>
+<nav id="nav"></nav>
+<input type="file" id="cam" accept="image/*" capture="environment" hidden onchange="onPhoto(this)">
+<div id="ov" hidden><video id="vid" playsinline muted></video><div id="smsg"></div><button onclick="closeScan()">إغلاق</button></div>
+<script>
+const TABS={sell:'بيع',stock:'المخزون',exp:'مصروفات',rep:'التقارير'};
+const TT={sell:'تسجيل بيع',stock:'المنتجات والمخزون',exp:'المصروفات',rep:'الأرباح والخسائر'};
+let D={products:[],sales:[],expenses:[]},tab='sell',period='day';
+try{const s=localStorage.getItem('shopdata');if(s)D=JSON.parse(s)}catch(e){}
+const save=()=>{try{localStorage.setItem('shopdata',JSON.stringify(D))}catch(e){}};
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const fm=n=>(Math.round(n*100)/100).toLocaleString('ar-EG');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const v=id=>document.getElementById(id).value;
+const uid=()=>Date.now()+Math.floor(Math.random()*1000);
+const inP=d=>period==='all'||(period==='day'?d===today():d.slice(0,7)===today().slice(0,7));
+function go(t){tab=t;location.hash=t;render()}
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(TABS[h]&&h!==tab){tab=h;render()}});
+if(TABS[location.hash.slice(1)])tab=location.hash.slice(1);
+
+let auto=false,stream=null,stopFn=null;
+const flash=t=>{const e=document.getElementById('bm');if(e)e.textContent=t};
+const loadZX=()=>window.ZXing?Promise.resolve():new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';s.onload=ok;s.onerror=no;document.head.appendChild(s)});
+function closeScan(){if(stopFn){try{stopFn()}catch(e){}}stopFn=null;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}document.getElementById('ov').hidden=true}
+async function scanLive(cb){
+  const vid=document.getElementById('vid'),msg=document.getElementById('smsg');
+  document.getElementById('ov').hidden=false;msg.textContent='وجّه الكاميرا ناحية الباركود';
+  let done=false;const fin=c=>{if(done)return;done=true;closeScan();cb(c)};
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    if('BarcodeDetector' in window){
+      vid.srcObject=stream;await vid.play();
+      const det=new BarcodeDetector();let on=true;stopFn=()=>{on=false};
+      const loop=async()=>{if(!on)return;try{const r=await det.detect(vid);if(r.length){fin(r[0].rawValue);return}}catch(e){}setTimeout(loop,200)};loop();
+    }else{
+      await loadZX();
+      const rd=new ZXing.BrowserMultiFormatReader();stopFn=()=>rd.reset();
+      rd.decodeFromStream(stream,vid,r=>{if(r)fin(r.getText())});
+    }
+  }catch(e){msg.textContent='الكاميرا مش شغالة هنا. اكتب الباركود بإيدك أو استخدم جهاز قارئ باركود.'}
+}
+let pend=null;
+function scan(cb){pend=cb;const f=document.getElementById('cam');f.value='';f.click()}
+async function onPhoto(f){
+  const file=f.files[0];if(!file)return;const cb=pend;
+  const url=URL.createObjectURL(file);let code=null;
+  try{
+    if('BarcodeDetector' in window){const bmp=await createImageBitmap(file);const r=await new BarcodeDetector().detect(bmp);if(r.length)code=r[0].rawValue}
+    if(!code){await loadZX();const rd=new ZXing.BrowserMultiFormatReader();const r=await rd.decodeFromImageUrl(url);code=r.getText()}
+  }catch(e){}
+  URL.revokeObjectURL(url);
+  if(code)cb(code);else alert('معرفتش أقرأ الباركود. قرّب الكاميرا بحيث الباركود يملا الصورة، وبإضاءة كويسة، وجرّب تاني');
+}
+function bySale(code){
+  code=String(code).trim();if(!code)return;
+  const p=D.products.find(p=>p.code&&p.code===code);
+  if(!p){alert('الباركود ده مش مسجل. ضيفه من تبويب المخزون');return}
+  if(auto){
+    if(p.qty<=0&&!confirm('المخزون خلصان لـ '+p.name+'. تكمل؟'))return;
+    p.qty-=1;D.sales.push({id:uid(),date:today(),pid:p.id,name:p.name,qty:1,price:p.price,cost:p.cost});save();render();
+    flash('✓ اتسجل: '+p.name+' بـ '+fm(p.price));
+  }else{
+    render();document.getElementById('sp').value=p.id;onPick();document.getElementById('sq').focus();flash('اتحدد: '+p.name);
+  }
+}
+function setCode(id){scan(c=>{if(D.products.some(p=>p.code===c&&p.id!==id)){alert('الباركود ده مسجل لمنتج تاني');return}D.products.find(p=>p.id===id).code=c;save();render()})}
+function addProduct(){
+  const name=v('pn').trim(),code=v('pcode').trim(),cost=+v('pc'),price=+v('pp'),qty=+v('pq')||0;
+  if(code&&D.products.some(p=>p.code===code)){alert('الباركود ده مسجل لمنتج تاني');return}
+  if(!name||!(price>0)||cost<0||v('pc')===''){alert('اكتب الاسم وسعر الشراء وسعر البيع');return}
+  D.products.push({id:uid(),name,code,cost,price,qty});save();render();
+}
+function addStock(id){const n=+prompt('كام قطعة هتضيف للمخزون؟');if(n>0){D.products.find(p=>p.id===id).qty+=n;save();render()}}
+function delProduct(id){if(confirm('تحذف المنتج؟ (المبيعات القديمة هتفضل محفوظة)')){D.products=D.products.filter(p=>p.id!==id);save();render()}}
+function onPick(){const p=D.products.find(p=>p.id==v('sp'));if(p)document.getElementById('sprice').value=p.price}
+function sell(){
+  const p=D.products.find(p=>p.id==v('sp')),q=+v('sq'),pr=+v('sprice');
+  if(!p||!(q>0)||!(pr>=0)){alert('اختار المنتج واكتب الكمية والسعر');return}
+  if(q>p.qty&&!confirm('الكمية أكبر من المخزون ('+p.qty+'). تكمل؟'))return;
+  p.qty-=q;
+  D.sales.push({id:uid(),date:today(),pid:p.id,name:p.name,qty:q,price:pr,cost:p.cost});save();render();
+}
+function delSale(id){const s=D.sales.find(s=>s.id===id);if(!s||!confirm('تلغي عملية البيع؟ الكمية هترجع للمخزون'))return;
+  const p=D.products.find(p=>p.id===s.pid);if(p)p.qty+=s.qty;D.sales=D.sales.filter(x=>x.id!==id);save();render()}
+function addExp(){const d=v('ed').trim(),a=+v('ea');if(!d||!(a>0)){alert('اكتب البيان والمبلغ');return}
+  D.expenses.push({id:uid(),date:today(),desc:d,amount:a});save();render()}
+function delExp(id){if(confirm('تحذف المصروف؟')){D.expenses=D.expenses.filter(e=>e.id!==id);save();render()}}
+
+function vSell(){
+  const ts=D.sales.filter(s=>s.date===today()),rev=ts.reduce((a,s)=>a+s.qty*s.price,0),pf=ts.reduce((a,s)=>a+s.qty*(s.price-s.cost),0);
+  const opts=D.products.map(p=>`<option value="${p.id}">${esc(p.name)} (متاح ${p.qty})</option>`).join('');
+  return `<div class="card"><h2>بيع جديد</h2>${D.products.length?`
+  <label>الباركود</label><div class="row"><input id="bc" inputmode="numeric" placeholder="صوّر أو اكتب الباركود" onkeydown="if(event.key==='Enter')bySale(this.value)" style="flex:3"><button class="s" style="margin:0;padding:8px" onclick="scan(bySale)">📷 صوّر</button></div>
+  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" style="width:auto" onchange="auto=this.checked" ${auto?'checked':''}> تسجيل تلقائي (قطعة واحدة) عند المسح</label><div class="gain" id="bm"></div>
+  <label>المنتج</label><select id="sp" onchange="onPick()"><option value="">اختار منتج</option>${opts}</select>
+  <div class="row"><div><label>الكمية</label><input id="sq" type="number" inputmode="numeric" min="1" value="1"></div>
+  <div><label>سعر القطعة</label><input id="sprice" type="number" inputmode="decimal"></div></div>
+  <button onclick="sell()">سجّل البيع</button>`:'<div class="empty">ضيف منتجات الأول من تبويب المخزون</div>'}</div>
+  <div class="card"><h2>مبيعات النهاردة</h2><div class="big"><div class="k"><small>إجمالي البيع</small><b>${fm(rev)}</b></div><div class="k"><small>المكسب</small><b class="${pf<0?'loss':'gain'}">${fm(pf)}</b></div></div>
+  ${ts.length?[...ts].reverse().map(s=>`<div class="it"><div>${esc(s.name)}<small>${s.qty} × ${fm(s.price)} = ${fm(s.qty*s.price)}</small></div><button class="s d" onclick="delSale(${s.id})">إلغاء</button></div>`).join(''):'<div class="empty">مفيش مبيعات لسه</div>'}</div>`;
+}
+function vStock(){
+  return `<div class="card"><h2>إضافة منتج</h2><label>الاسم</label><input id="pn" placeholder="مثال: كفر آيفون 13">
+  <label>الباركود (اختياري)</label><div class="row"><input id="pcode" inputmode="numeric" style="flex:3"><button class="s" style="margin:0;padding:8px" onclick="scan(c=>{document.getElementById('pcode').value=c})">📷 صوّر</button></div>
+  <div class="row"><div><label>سعر الشراء</label><input id="pc" type="number" inputmode="decimal"></div><div><label>سعر البيع</label><input id="pp" type="number" inputmode="decimal"></div><div><label>الكمية</label><input id="pq" type="number" inputmode="numeric"></div></div>
+  <button onclick="addProduct()">حفظ المنتج</button></div>
+  <div class="card"><h2>الجرد (${D.products.length} منتج)</h2>${D.products.length?D.products.map(p=>`<div class="it"><div>${esc(p.name)}<small>شراء ${fm(p.cost)} · بيع ${fm(p.price)}${p.code?' · باركود '+esc(p.code):''}</small></div>
+  <div style="text-align:left"><b class="${p.qty<=0?'loss':p.qty<=3?'warn':''}">${p.qty}${p.qty<=3?' ⚠':''}</b><br><button class="s" onclick="setCode(${p.id})">📷 باركود</button> <button class="s" onclick="addStock(${p.id})">+ مخزون</button> <button class="s d" onclick="delProduct(${p.id})">حذف</button></div></div>`).join(''):'<div class="empty">لسه مفيش منتجات</div>'}</div>`;
+}
+function vExp(){
+  const list=D.expenses.filter(e=>e.date.slice(0,7)===today().slice(0,7)),t=list.reduce((a,e)=>a+e.amount,0);
+  return `<div class="card"><h2>مصروف جديد</h2><label>البيان</label><input id="ed" placeholder="إيجار، كهربا، مواصلات...">
+  <label>المبلغ</label><input id="ea" type="number" inputmode="decimal"><button onclick="addExp()">سجّل المصروف</button></div>
+  <div class="card"><h2>مصروفات الشهر</h2>${list.length?[...list].reverse().map(e=>`<div class="it"><div>${esc(e.desc)}<small>${e.date}</small></div><div><b>${fm(e.amount)}</b> <button class="s d" onclick="delExp(${e.id})">حذف</button></div></div>`).join('')+`<div class="tot">الإجمالي: ${fm(t)}</div>`:'<div class="empty">مفيش مصروفات الشهر ده</div>'}</div>`;
+}
+function vRep(){
+  const ss=D.sales.filter(s=>inP(s.date)),ee=D.expenses.filter(e=>inP(e.date));
+  const rev=ss.reduce((a,s)=>a+s.qty*s.price,0),cogs=ss.reduce((a,s)=>a+s.qty*s.cost,0),exp=ee.reduce((a,e)=>a+e.amount,0),gross=rev-cogs,net=gross-exp;
+  const m={};ss.forEach(s=>{m[s.name]=m[s.name]||{q:0,p:0};m[s.name].q+=s.qty;m[s.name].p+=s.qty*(s.price-s.cost)});
+  const top=Object.entries(m).sort((a,b)=>b[1].q-a[1].q).slice(0,5);
+  const sv=D.products.reduce((a,p)=>a+p.qty*p.cost,0),sp=D.products.reduce((a,p)=>a+p.qty*p.price,0);
+  const o=(k,t)=>`<option value="${k}" ${period===k?'selected':''}>${t}</option>`;
+  return `<div class="card"><label>الفترة</label><select onchange="period=this.value;render()">${o('day','النهاردة')}${o('month','الشهر ده')}${o('all','الكل')}</select></div>
+  <div class="card"><div class="big"><div class="k"><small>إجمالي المبيعات</small><b>${fm(rev)}</b></div><div class="k"><small>تكلفة البضاعة</small><b>${fm(cogs)}</b></div>
+  <div class="k"><small>مكسب المبيعات</small><b class="${gross<0?'loss':'gain'}">${fm(gross)}</b></div><div class="k"><small>المصروفات</small><b>${fm(exp)}</b></div>
+  <div class="k net"><small>صافي الربح بعد المصروفات ${net<0?'(خسارة)':''}</small><b class="${net<0?'loss':'gain'}">${fm(net)}</b></div></div></div>
+  <div class="card"><h2>الأكثر مبيعًا</h2>${top.length?top.map(([n,x])=>`<div class="it"><div>${esc(n)}</div><div>${x.q} قطعة · مكسب <b class="${x.p<0?'loss':'gain'}">${fm(x.p)}</b></div></div>`).join(''):'<div class="empty">مفيش بيانات</div>'}</div>
+  <div class="card"><h2>قيمة المخزون الحالي</h2><div class="big"><div class="k"><small>بسعر الشراء</small><b>${fm(sv)}</b></div><div class="k"><small>بسعر البيع</small><b>${fm(sp)}</b></div></div></div>`;
+}
+function render(){
+  document.getElementById('ttl').textContent=TT[tab];
+  document.getElementById('nav').innerHTML=Object.entries(TABS).map(([k,t])=>`<a class="${k===tab?'on':''}" onclick="go('${k}')">${t}</a>`).join('');
+  document.getElementById('app').innerHTML={sell:vSell,stock:vStock,exp:vExp,rep:vRep}[tab]();
+}
+render();
+</script>
+</body>
+</html>
